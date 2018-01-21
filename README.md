@@ -1,0 +1,1 @@
+Miscellaneous teaching materials for population dynamics, statistics, and modeling. 
