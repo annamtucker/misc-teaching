@@ -3,8 +3,8 @@ title: "Math Refresher for Population Ecology"
 author: "Anna Tucker"
 date: "January 19, 2018"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
