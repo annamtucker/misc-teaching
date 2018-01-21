@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", fig.width = 5, fig.height = 4)
 ```
   
   
@@ -55,7 +55,7 @@ $\Delta$ is written "delta" and pronouned "del-ta." You probably knew that too. 
 $\lambda$ is written "lambda" and pronounced "lamb-duh." $\lambda$ is one of those letters that has a fairly fixed use in population ecology. It is used to represent the geometric growth rate of a population. For a population that is not increasing or decreasing, $\lambda = 1$.  
    
    
-$\phi$ is written "phi" and pronounced either "fi" or "fee", but I tend to hear "fi" (rhymes with "pie") used more often. $\phi$ is often used to represent annual survival probability.  
+$\phi$ is written "phi" and pronounced either "fie" or "fee", but I tend to hear "fie" (rhymes with "pie") used more often. $\phi$ is often used to represent annual survival probability.  
    
    
 $\theta$ is written "theta" and pronounced "thay-ta." $\theta$ is another general-use letter, but is often also used to represent data in a modeling context.  
@@ -141,7 +141,7 @@ In population ecology we will often calculate, plot, and think about the change 
 
 The derivative tells us how the population growth rate changes over time.
 
-```{r}
+```{r, fig.width = 8, fig.height = 5}
 r = 0.25
 t = c(1:50)
 N = 10*exp(r*t)
@@ -155,7 +155,7 @@ plot(dNdt ~ 1:N, type = "l", xlab = "Population size", ylab = "dN/dt (Population
 By plotting the derivative we can see that in the exponential model of population growth, the population growth rate increases linearly with population size. What do you think the derivative of the logistic growth model would look like?  
    
    
-```{r}
+```{r, fig.width = 8, fig.height = 5}
 r = 0.25
 t = c(1:50)
 K = 500
