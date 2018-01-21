@@ -2,13 +2,19 @@
 title: "Math Refresher for Population Ecology"
 author: "Anna Tucker"
 date: "January 19, 2018"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
 ```
-
+  
+  
+This is a general refresher of math and calculus concepts and notation for WILD 4890: Wildlife Population Science Lab. This is not a comprehensive review, but hopefully helps jogs your memory of math classes past.  
+  
+  
 ### Symbols and notation
   
 Not an exhaustive list, but some of the more common symbols/notation you'll encounter are:  
@@ -146,9 +152,21 @@ plot(N ~ t, type = "l", ylab = "Population size", xlab = "Time")
 plot(dNdt ~ 1:N, type = "l", xlab = "Population size", ylab = "dN/dt (Population growth rate)")
 ```
   
-By plotting the derivative we can see that in the exponential model of population growth, the population growth rate increases linearly with population size.  
+By plotting the derivative we can see that in the exponential model of population growth, the population growth rate increases linearly with population size. What do you think the derivative of the logistic growth model would look like?  
    
-  
+   
+```{r}
+r = 0.25
+t = c(1:50)
+K = 500
+N = K/(1+((K-10)/10)*exp(-r*t))
+dNdt = r*N*((K-N)/K)
+
+par(mfrow = c(1,2))
+plot(N ~ t, type = "l", ylab = "Population size", xlab = "Time")
+plot(dNdt ~ 1:N, type = "l", xlab = "Population size", ylab = "dN/dt (Population growth rate)")
+```
+
    
 
 
