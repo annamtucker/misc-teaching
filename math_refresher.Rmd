@@ -52,7 +52,7 @@ $\gamma$ is written "gamma" and pronounced "gam-ah." $\gamma$ is usually used in
 $\Delta$ is written "delta" and pronouned "del-ta." You probably knew that too. $\Delta$ is used to represent change in something. We'll see it most often used to represent the change in population size, $N$, which we write as $\Delta N$.   
    
    
-$\lambda$ is written "lambda" and pronounced "lamb-duh." $\lambda$ is one of those letters that has a fairly fixed use in population ecology. It is used to represent the geometric growth rate of a population. For a population that is not increasing or decreasing, $\lambda = 1$.  
+$\lambda$ is written "lambda" and pronounced "lamb-duh." $\lambda$ is one of those letters that has a fairly fixed use in population ecology. It is used to represent the finite rate of population increase. For a population that is not increasing or decreasing, $\lambda = 1$.  
    
    
 $\phi$ is written "phi" and pronounced either "fie" or "fee", but I tend to hear "fie" (rhymes with "pie") used more often. $\phi$ is often used to represent annual survival probability.  
