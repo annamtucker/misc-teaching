@@ -1,4 +1,4 @@
-# shiny app for LV model of predator prey dynamics
+# shiny app to explore lotka-volterra predator-prey dynamics
 # WILD 4890 spring 18
 
 library(shiny)

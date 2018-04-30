@@ -1,4 +1,4 @@
-# adding stochasticity to population projections
+# shiny app to create stochastic population projections for population viability analyses
 # mar 2018
 
 require(shiny)
