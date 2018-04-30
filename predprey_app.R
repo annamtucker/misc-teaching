@@ -1,4 +1,5 @@
 # shiny app to explore lotka-volterra predator-prey dynamics
+# uses predprey_models.md in second tab to display equations
 # WILD 4890 spring 18
 
 library(shiny)
