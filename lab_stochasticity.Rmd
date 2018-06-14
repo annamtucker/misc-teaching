@@ -1,0 +1,395 @@
+---
+title: "Stochastic population projections and population viability analysis"
+author: "Anna Tucker"
+date: "June 13, 2018"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+### Types of uncertainty
+
+Deterministic models of population dynamics are useful for understanding the patterns and rules that govern wildlife population dynamics. However, they have limited utility for making predictions about future population states because they don’t account for random variation and stochasticity that occurs in nature. To make predictions, we use stochastic projections which explicitly incorporate that variation into the projection process. Because the results of a projection will be different each time it’s run, we need to run many replicates, and summarize the outcomes to determine the most likely outcome (median) and the range of possible outcomes (usually using the 95% quantiles). We can also make direct statements about the probability of certain events occurring by calculating the proportion of replicates in which that event occurred.
+  
+The three main types of uncertainty/stochasticity we will explore are __environmental stochasticity__, __demographic stochasticity__, and __parametric uncertainty__. We will be using a simple exponential model of population growth and exploring the effects of those types of uncertainty in birth rate (b) and death rate (d) on population dynamics and extinction probability. 
+
+$$
+N_{t+1} = N_t * e^r \\
+r = b-d
+$$
+
+#### Environmental stochasticity
+
+Few, if any, wildlife populations exist in completely stable environments; random variation in weather, disturbance, etc. lead to variation in the realized birth and death rates of a population. Consider a population where the average survival probability is 0.6, but depends on winter severity. The average death rate is 0.4 (1-survival), and the standard deviation in death rate among years is 0.1. We can use this mean and standard deviation to describe a normal distribution of death rates for all years. The distribution of all possible death rates would look something like this:
+  
+  
+```{r}
+hist(rnorm(100000, 0.4, 0.1), breaks = 100, col = "gray", 
+     main = "", xlab = "Per capita death rate")
+```
+  
+  
+Since we can’t necessarily predict which years in the future will be cold winters and which will be warm, we randomly draw a value for death rate from this normal distribution for each year.  This accounts for random variation in the environment.  
+  
+We can visualize the effect that including this stochasticity has on population dynamics by replicating population projections. Below, leave the average and standard deviation for birth and death rate on the default values. Check the box for environmental stochasticity--how does that change the figure? Why?
+  
+```{r}
+inputPanel(
+  fluidRow(column(12, 
+                  checkboxInput("env", label = "Add environmental stochasticity", value = F))),
+  fluidRow(column(12,
+                  numericInput("input.b", label = "Average birth rate",
+                  value = 0.4, min = 0, max = 6, step = 0.1)),
+           column(12,
+                  numericInput("input.d", label = "Average death rate",
+                  value = 0.3, min = 0, max = 1, step = 0.1))),
+  fluidRow(column(12, 
+                  numericInput("sd.b", label = "Among-year SD in birth rate",
+                  value = 0.1, min = 0.1, max = 2, step = 0.1)),
+           column(12,
+                  numericInput("sd.d", label = "Among-year SD in death rate",
+                  value = 0.1, min = 0.1, max = 1, step = 0.1)))
+)
+
+
+dat1_e <- reactive({
+    reps = 1000
+    nyrs = 50
+    N.init = 500
+    
+    input.b = input$input.b
+    input.d = input$input.d
+    
+    sd.b = input$sd.b
+    sd.d = input$sd.d
+    
+    N = B = D = matrix(nrow = nyrs, ncol = reps)
+    N[1,] = N.init
+    
+    for(r in 1:reps){
+        
+      mean.b = input.b
+      mean.d = input.d
+        
+      b = rep(mean.b, nyrs)
+      d = rep(mean.d, nyrs)
+      if(input$env){
+        b = abs(rnorm(nyrs, mean.b, sd.b))
+        d = abs(rnorm(nyrs, mean.d, sd.b))
+      }
+
+      for(t in 2:nyrs){
+        B[t-1,r] = N[t-1,r]*b[t-1]
+        D[t-1,r] = N[t-1,r]*d[t-1]
+        N[t,r] = ifelse(N[t-1,r] + B[t-1,r] - D[t-1,r] > 0, 
+                            N[t-1,r] + B[t-1,r] - D[t-1,r], 0)
+      }
+    }
+    
+    data.frame(N = c(N), 
+               year = rep(c(1:nyrs), reps),
+               rep = rep(c(1:reps), each = nyrs))
+})
+
+renderPlot({
+    require(ggplot2)
+    require(cowplot)
+    
+    ggplot(dat1_e(), aes(x = year, y = N, col = as.character(rep))) +
+      geom_line(lwd = 2, alpha = 0.3) +
+      theme(legend.position = "none") +
+      xlab("Year") +
+      ylab("Population size\nAll replicates") +
+      theme(axis.text = element_text(size = 20),
+            axis.title = element_text(size = 20))
+    
+  })
+```
+  
+  
+#### Demographic stochasticity 
+  
+We talk about birth and deaths as rates, but in reality those rates are not always perfectly realized. If a population death rate is 0.4, that means that every adult has a 40% chance of dying in each year, but the actual number of deaths in a given year could be slightly more or less than 40%, depending on individual variation. If the average birth rate is 1.5, that means that some individuals produce 1 offspring, some produce 2, and a few have more than 2 or none at all. 
+  
+  
+```{r}
+hist(rpois(100000, 1.5),col = "gray", main = "", 
+     xlab = "Possible number of offspring if b = 1.5",
+     breaks = 10)
+```
+  
+  
+The effect of this variation among individuals on population dynamics is usually negligible if population size is large, but when population size is small it can have a big effect on population outcomes. To account for demographic stochasticity in projections, we use statistical distributions, just like we used a normal distribution to represent the range of possible annual death rates in the example above. In each year, we will use the Binomial distribution to randomly draw the number of individuals that died and use the Poisson distribution to randomly draw the number of births. We use the Binomial distribution for deaths because it is used to represent situations where there are only two possible outcomes, i.e. survive or die, and the Poisson distribution is useful for births because it ensures that the number of births is not less than 0, and that it is only an integer (in nature we can’t have a fraction of an individual born). 
+
+Check the box for demographic stochasticity below to see how it changes the population projection. Notice how environmental stochasticity creates more “noisy” projections. Why are they different?
+  
+```{r}
+inputPanel(
+  checkboxInput("demo", label = "Add demographic stochasticity", value = F),
+  numericInput("input.b", label = "Average birth rate",
+                  value = 0.4, min = 0, max = 6, step = 0.1),
+  numericInput("input.d", label = "Average death rate",
+                  value = 0.3, min = 0, max = 1, step = 0.1)
+)
+
+dat1_d <- reactive({
+    reps = 1000
+    nyrs = 50
+    N.init = 500
+    
+    input.b = input$input.b
+    input.d = input$input.d
+    
+    sd.b = input$sd.b
+    sd.d = input$sd.d
+    
+    N = B = D = matrix(nrow = nyrs, ncol = reps)
+    N[1,] = N.init
+    
+    for(r in 1:reps){
+        
+      mean.b = input.b
+      mean.d = input.d
+        
+      b = rep(mean.b, nyrs)
+      d = rep(mean.d, nyrs)
+      if(input$env){
+        b = abs(rnorm(nyrs, mean.b, sd.b))
+        d = abs(rnorm(nyrs, mean.d, sd.b))
+      }
+
+      for(t in 2:nyrs){
+        B[t-1,r] = ifelse(input$demo, rpois(1, N[t-1,r]*b[t-1]), N[t-1,r]*b[t-1])
+        D[t-1,r] = ifelse(input$demo, rbinom(1, N[t-1,r], d[t-1]), N[t-1,r]*d[t-1])
+        N[t,r] = ifelse(N[t-1,r] + B[t-1,r] - D[t-1,r] > 0, 
+                            N[t-1,r] + B[t-1,r] - D[t-1,r], 0)
+      }
+    }
+    
+    data.frame(N = c(N), 
+               year = rep(c(1:nyrs), reps),
+               rep = rep(c(1:reps), each = nyrs))
+})
+
+renderPlot({
+    require(ggplot2)
+    require(cowplot)
+    
+    ggplot(dat1_d(), aes(x = year, y = N, col = as.character(rep))) +
+      geom_line(lwd = 2, alpha = 0.3) +
+      theme(legend.position = "none") +
+      xlab("Year") +
+      ylab("Population size\nAll replicates") +
+      theme(axis.text = element_text(size = 20),
+            axis.title = element_text(size = 20))
+    
+  })
+
+
+```
+  
+  
+#### Parametric uncertainty
+  
+Whenever we estimate population vital rates like birth or death rate, we have some uncertainty in those estimates, which we represent using the standard error, variance, CV, or confidence intervals. We can incorporate this uncertainty in parameter estimates into our projections in a few different ways. The method that we’ll use here is one of the simplest, in which we’ll take the minimum and maximum possible values and run projections across the range of possible values. Consider a population where average birth rate is 0.6, but it can be as low as 0.2 or as high as 0.8. One way to account for this uncertainty is to run the projection using a birth rate of 0.2 (minimum), run it again with birth rate of 0.8 (maximum), and compare the outcomes at the two extremes. We can also choose a series of possible birth rates, say a series of 10 values between 0.2 and 0.8, and run the projections for all of them. This gives us a slightly fuller picture of the possible outcomes. 
+
+Check the box for parametric uncertainty in birth and death rates below. Describe the resulting population dynamics.
+    
+```{r}
+inputPanel(
+  fluidRow(column(12, 
+                  checkboxInput("para", label = "Add parametric uncertainty", value = F))),
+  fluidRow(column(12,
+                  numericInput("input.b", label = "Average birth rate",
+                  value = 0.4, min = 0, max = 6, step = 0.1)),
+           column(12,
+                  numericInput("input.d", label = "Average death rate",
+                  value = 0.3, min = 0, max = 1, step = 0.1))),
+  fluidRow(column(12, 
+                  numericInput("min.d", label = "Minimum death rate",
+                  value = 0.2, min = 0, max = 1, step = 0.1)),
+           column(12,
+                  numericInput("min.d", label = "Minimum death rate",
+                   value = 0.2, min = 0, max = 1, step = 0.1))),
+  fluidRow(column(12,
+                  numericInput("max.b", label = "Maximum birth rate",
+                  value = 1.2, min = 0.1, max = 6, step = 0.1)),
+           column(12,
+                   numericInput("max.d", label = "Maximum death rate",
+                  value = 0.3, min = 0.1, max = 1, step = 0.1)))
+)
+
+dat1_p <- reactive({
+    reps = 1000
+    nyrs = 50
+    N.init = 500
+    
+    input.b = input$input.b
+    input.d = input$input.d
+    
+    sd.b = input$sd.b
+    sd.d = input$sd.d
+    
+    N = B = D = matrix(nrow = nyrs, ncol = reps)
+    N[1,] = N.init
+    
+    for(r in 1:reps){
+        
+      mean.b = ifelse(input$para, runif(1, min.b, max.b), input.b)
+      mean.d = ifelse(input$para, runif(1, min.d, max.d), input.d)
+        
+      b = rep(mean.b, nyrs)
+      d = rep(mean.d, nyrs)
+
+      for(t in 2:nyrs){
+        B[t-1,r] = N[t-1,r]*b[t-1]
+        D[t-1,r] = N[t-1,r]*d[t-1]
+        N[t,r] = ifelse(N[t-1,r] + B[t-1,r] - D[t-1,r] > 0, 
+                            N[t-1,r] + B[t-1,r] - D[t-1,r], 0)
+      }
+    }
+    
+    data.frame(N = c(N), 
+               year = rep(c(1:nyrs), reps),
+               rep = rep(c(1:reps), each = nyrs))
+})
+
+renderPlot({
+    require(ggplot2)
+    require(cowplot)
+    
+    ggplot(dat1_p(), aes(x = year, y = N, col = as.character(rep))) +
+      geom_line(lwd = 2, alpha = 0.3) +
+      theme(legend.position = "none") +
+      xlab("Year") +
+      ylab("Population size\nAll replicates") +
+      theme(axis.text = element_text(size = 20),
+            axis.title = element_text(size = 20))
+    
+  })
+```
+  
+  
+### Population viability analysis
+  
+The goal of population viability analysis (PVA) is to evaluate the probability of a population persisting with some level of confidence until some arbitrary time horizon. When conducting a PVA, researchers and managers must decide the following before starting:
+1.	What is the minimum threshold that we want the population to remain above?
+2.	What probability of remaining above that threshold are we comfortable with?
+3.	How many years into the future do we want to evaluate?
+  
+The answers to all these questions depend on the biology of species in question and the management goals. For example, a time horizon of 20 years seems reasonable for a small mammal that only lives 2-3 years, but for a species that lives for 30 years and reproduces slowly that time frame may be too short to capture population dynamics and responses to potential environmental stressors. On the other hand, it’s tempting to set the time horizon for 100 years or more into the future, but that is typically an unrealistic time frame to consider for management actions. Think about the world in 1918—do you think biologists then could have accurately predicted the conditions of wildlife today?
+   
+   
+#### Quasi-extinction probability  
+  
+The minimum population size threshold is also called the quasi-extinction threshold. It’s usually more useful than true extinction (N = 0) as the threshold, because once a population gets small enough it becomes functionally extinct. Also, optimal management actions may change with population size; for example, if the population drops below 100 individuals, we may favor captive breeding over habitat management. 
+  
+Deciding on what probability of remaining above the quasi-extinction threshold we are comfortable with again depends on the management goals and the people making the decisions. We may decide that we want a 0% probability of quasi-extinction, or maybe we are comfortable with 5% or less. This becomes important when comparing different potential scenarios for the future. To calculate the quasi-extinction probability, we simply find the proportion of replicates in which the final population size fell below the threshold we have set. So if we ran 1000 replicates, and in 20 of those replicates the projected population size fell below our threshold, the quasi-extinction probability would be $ 20/1000 = 0.02 $, or 2%.  
+  
+Use the slider to change the quasi-extinction threshold below. The red dotted line shows you this threshold on the graph and the quasi-extinction probability is displayed to the right. Now set the quasi-extinction threshold to 10. Leaving the parameter values on the default values, check and uncheck the boxes for each type of uncertainty. Which projection leads to the highest quasi-extinction probability? Which leads to the lowest? Why?  
+  
+```{r}
+inputPanel(
+
+  fluidRow(column(12, numericInput("input.b", label = "Average birth rate",
+                                                   value = 0.4, min = 0, max = 6, step = 0.1)),
+           column(12, numericInput("input.d", label = "Average death rate",
+                                                   value = 0.3, min = 0, max = 1, step = 0.1))),
+                   
+  fluidRow(column(12, numericInput("min.b", label = "Minimum birth rate",
+                                                   value = 0.2, min = 0, max = 4, step = 0.1)),
+           column(12, numericInput("min.d", label = "Minimum death rate",
+                                                   value = 0.2, min = 0, max = 1, step = 0.1))),
+                   
+  fluidRow(column(12, numericInput("max.b", label = "Maximum birth rate",
+                                                   value = 1.2, min = 0.1, max = 6, step = 0.1)),
+           column(12, numericInput("max.d", label = "Maximum death rate",
+                                                   value = 0.3, min = 0.1, max = 1, step = 0.1))),
+                            
+  fluidRow(column(12, numericInput("sd.b", label = "Among-year SD birth rate",
+                                                   value = 0.1, min = 0.1, max = 2, step = 0.1)),
+           column(12, numericInput("sd.d", label = "Among-year SD death rate",
+                                                   value = 0.1, min = 0.1, max = 1, step = 0.1))),
+  
+  fluidRow(column(12, checkboxInput("demo", label = "Add demographic stochasticity", value = F)),
+           column(12, checkboxInput("env", label = "Add environmental stochasticity",value = F)),
+           column(12, checkboxInput("para", label = "Add parametric uncertainty", value = F))),
+  
+  fluidRow(column(12, sliderInput("threshold", label = "Quasi-extinction threshold",
+                                                  value = 1, min = 1, max = 1000)))
+)
+
+ dat1 <- reactive({
+    reps = 1000
+    nyrs = 50
+    N.init = 500
+    
+    min.b = input$min.b
+    max.b = input$max.b
+    
+    min.d = input$min.d
+    max.d = input$max.d
+    
+    min.r = input$min.r
+    max.r = input$max.r
+    
+    input.b = input$input.b
+    input.d = input$input.d
+    input.r = input$input.r
+    
+    sd.b = input$sd.b
+    sd.d = input$sd.d
+    sd.r = input$sd.r
+    
+    
+    N = B = D = matrix(nrow = nyrs, ncol = reps)
+    N[1,] = N.init
+    
+    for(r in 1:reps){
+      mean.b = ifelse(input$para, runif(1, min.b, max.b), input.b)
+      mean.d = ifelse(input$para, runif(1, min.d, max.d), input.d)
+        
+      b = rep(mean.b, nyrs)
+      d = rep(mean.d, nyrs)
+      if(input$env){b = abs(rnorm(nyrs, mean.b, sd.b))
+                    d = abs(rnorm(nyrs, mean.d, sd.b))}
+
+      for(t in 2:nyrs){
+            
+            B[t-1,r] = ifelse(input$demo, rpois(1, N[t-1,r]*b[t-1]), N[t-1,r]*b[t-1])
+            D[t-1,r] = ifelse(input$demo, rbinom(1, N[t-1,r], d[t-1]), N[t-1,r]*d[t-1])
+            N[t,r] = ifelse(N[t-1,r] + B[t-1,r] - D[t-1,r] > 0, 
+                            N[t-1,r] + B[t-1,r] - D[t-1,r], 0)
+      }
+    }
+
+    data.frame(N = c(N), 
+               year = rep(c(1:nyrs), reps),
+               rep = rep(c(1:reps), each = nyrs))
+ })
+ 
+ renderPlot({
+    require(ggplot2)
+    require(cowplot)
+    
+    ggplot(dat1(), aes(x = year, y = N, col = as.character(rep))) +
+      geom_line(lwd = 2, alpha = 0.3) +
+      theme(legend.position = "none") +
+      xlab("Year") +
+      ylab("Population size\nAll replicates") +
+      theme(axis.text = element_text(size = 20),
+            axis.title = element_text(size = 20))
+    
+  })
+ 
+```
+
+
+
+
+  
+
+
