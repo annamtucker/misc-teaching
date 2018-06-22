@@ -6,8 +6,10 @@ output: html_document
 runtime: shiny
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+```{r setup, include=FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center")
+require(tidyverse)
+require(cowplot)
 ```
 
 ### Types of uncertainty
@@ -15,6 +17,8 @@ knitr::opts_chunk$set(echo = FALSE)
 Deterministic models of population dynamics are useful for understanding the patterns and rules that govern wildlife population dynamics. However, they have limited utility for making predictions about future population states because they don’t account for random variation and stochasticity that occurs in nature. To make predictions, we use stochastic projections which explicitly incorporate that variation into the projection process. Because the results of a projection will be different each time it’s run, we need to run many replicates, and summarize the outcomes to determine the most likely outcome (median) and the range of possible outcomes (usually using the 95% quantiles). We can also make direct statements about the probability of certain events occurring by calculating the proportion of replicates in which that event occurred.
   
 The three main types of uncertainty/stochasticity we will explore are __environmental stochasticity__, __demographic stochasticity__, and __parametric uncertainty__. We will be using a simple exponential model of population growth and exploring the effects of those types of uncertainty in birth rate (b) and death rate (d) on population dynamics and extinction probability. 
+  
+__Continuous-time exponential growth model:__
 
 $$
 N_{t+1} = N_t * e^r \\
@@ -27,12 +31,42 @@ Few, if any, wildlife populations exist in completely stable environments; rando
   
   
 ```{r}
-hist(rnorm(100000, 0.4, 0.1), breaks = 100, col = "gray", 
-     main = "", xlab = "Per capita death rate")
+dat = data.frame(x = rnorm(1000000, 0.4, 0.1))
+ggplot(dat, aes(x)) +
+  geom_histogram(binwidth = 0.01, fill = "gray", col = "gray40") +
+  xlab("Per capita death rate") +
+  ylab("Frequency")
 ```
   
   
-Since we can’t necessarily predict which years in the future will be cold winters and which will be warm, we randomly draw a value for death rate from this normal distribution for each year.  This accounts for random variation in the environment.  
+Since we can’t necessarily predict which years in the future will be cold winters and which will be warm, we randomly draw a value for death rate from this normal distribution for each year.  This accounts for random variation in the environment. Click the button below to draw a random death rate from this distribution.    
+  
+```{r}
+shinyApp(
+  ui <- fluidPage(
+    fluidRow(
+      column(3, actionButton("go", "Draw a value")),
+      column(9, plotOutput("hist")))
+  ),
+  
+  server <- function(input, output){
+    d <- eventReactive(input$go, {
+      return(rnorm(1, 0.4, 0.1))
+      })
+    
+    output$hist <- renderPlot(
+      ggplot(data.frame(x = rnorm(1000000, 0.4, 0.1)), aes(x=x)) +
+        geom_histogram(binwidth = 0.01, fill = "gray", col = "gray40") +
+        geom_vline(xintercept = d(), col = "dodgerblue4", lwd = 2) +
+        xlab("Per capita death rate") +
+        ylab("Frequency") +
+        annotate(geom = "text", label = paste("d = ", round(d(), 3)),
+           x = 0.7, y = 35000, size = 5, col = "dodgerblue4")
+    )
+  }
+)
+```
+
   
 We can visualize the effect that including this stochasticity has on population dynamics by replicating population projections. Below, leave the average and standard deviation for birth and death rate on the default values. Check the box for environmental stochasticity--how does that change the figure? Why?
   
@@ -114,11 +148,33 @@ renderPlot({
   
 We talk about birth and deaths as rates, but in reality those rates are not always perfectly realized. If a population death rate is 0.4, that means that every adult has a 40% chance of dying in each year, but the actual number of deaths in a given year could be slightly more or less than 40%, depending on individual variation. If the average birth rate is 1.5, that means that some individuals produce 1 offspring, some produce 2, and a few have more than 2 or none at all. 
   
+Move the slider below to change the average per capita birth rate and see how the distribution of possible birth rates change.  
   
 ```{r}
-hist(rpois(100000, 1.5),col = "gray", main = "", 
-     xlab = "Possible number of offspring if b = 1.5",
-     breaks = 10)
+shinyApp(
+  ui <- fluidPage(
+    fluidRow(
+      column(3, sliderInput("b", label = "Average per capita birth rate",
+                            min = 0, max = 10, value = 1.5, step = 0.5)),
+      column(9, plotOutput("b_hist"))
+    )
+  ),
+  
+  server <- function(input, output){
+    
+    b_all <- reactive(
+      return(rpois(100000, input$b))
+    )
+    
+    output$b_hist <- renderPlot(
+      ggplot(data.frame(x = b_all()), aes(x)) +
+      geom_histogram(binwidth = 1, fill = "gray", col = "gray40") +
+      xlab("Possible number of offspring") +
+      ylab("Frequency")
+
+    )
+  }
+)
 ```
   
   
@@ -194,7 +250,54 @@ renderPlot({
   
 #### Parametric uncertainty
   
-Whenever we estimate population vital rates like birth or death rate, we have some uncertainty in those estimates, which we represent using the standard error, variance, CV, or confidence intervals. We can incorporate this uncertainty in parameter estimates into our projections in a few different ways. The method that we’ll use here is one of the simplest, in which we’ll take the minimum and maximum possible values and run projections across the range of possible values. Consider a population where average birth rate is 0.6, but it can be as low as 0.2 or as high as 0.8. One way to account for this uncertainty is to run the projection using a birth rate of 0.2 (minimum), run it again with birth rate of 0.8 (maximum), and compare the outcomes at the two extremes. We can also choose a series of possible birth rates, say a series of 10 values between 0.2 and 0.8, and run the projections for all of them. This gives us a slightly fuller picture of the possible outcomes. 
+Whenever we estimate population vital rates like birth or death rate, we have some uncertainty in those estimates, which we represent using the standard error, variance, CV, or confidence intervals. We can incorporate this uncertainty in parameter estimates into our projections in a few different ways. The method that we’ll use here is one of the simplest, in which we’ll take the minimum and maximum possible values and run projections across the range of possible values. Consider a population where average birth rate is 0.6, but it can be as low as 0.2 or as high as 0.8. One way to account for this uncertainty is to run the projection using a birth rate of 0.2 (minimum), run it again with birth rate of 0.8 (maximum), and compare the outcomes at the two extremes. 
+  
+   
+```{r}
+nyrs = 50
+N.init = 500
+    
+input.b = c(0.2, 0.8)
+input.d = 0.6
+
+N = B = D = c()
+N[1] = N.init
+
+df = data.frame()
+    
+for(i in 1:2){
+        
+  mean.b = input.b[i]
+  mean.d = input.d
+        
+  b = rep(mean.b, nyrs)
+  d = rep(mean.d, nyrs)
+
+  for(t in 2:nyrs){
+    B[t-1] = N[t-1]*b[t-1]
+    D[t-1] = N[t-1]*d[t-1]
+    N[t] = ifelse(N[t-1] + B[t-1] - D[t-1] > 0,
+                  N[t-1] + B[t-1] - D[t-1], 0)
+  }
+  
+  dat = data.frame(N = N, 
+                 year = c(1:nyrs),
+                 b = mean.b)
+  df = rbind(df, dat)
+}
+    
+ggplot(df, aes(x = year, y = N, col = as.character(b))) +
+  geom_line(lwd = 2) +
+  scale_color_manual(values = c("dodgerblue4",
+                                  "palegreen4"),
+                       name = "per capita\nbirth rate") +
+  xlab("Year") +
+  ylab("Population size")
+
+```
+  
+  
+We can also choose a series of possible birth rates, any value between 0.2 and 0.8, and run the projections for all of them. This gives us a slightly fuller picture of the possible outcomes. 
 
 Check the box for parametric uncertainty in birth and death rates below. Describe the resulting population dynamics.
     
@@ -209,7 +312,7 @@ inputPanel(
                   numericInput("input.d", label = "Average death rate",
                   value = 0.3, min = 0, max = 1, step = 0.1))),
   fluidRow(column(12, 
-                  numericInput("min.d", label = "Minimum death rate",
+                  numericInput("min.b", label = "Minimum birth rate",
                   value = 0.2, min = 0, max = 1, step = 0.1)),
            column(12,
                   numericInput("min.d", label = "Minimum death rate",
